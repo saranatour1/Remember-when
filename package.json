@@ -1,9 +1,9 @@
 {
-  "name": ".",
+  "name": "remember-when",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev --port 3000",
+    "dev": "concurrently \"vite dev --port 3000\" \"pnpm dlx convex dev \" ",
     "build": "vite build",
     "serve": "vite preview",
     "test": "vitest run"
@@ -17,6 +17,7 @@
     "@tanstack/react-router-ssr-query": "^1.131.7",
     "@tanstack/react-start": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
+    "concurrently": "^9.2.1",
     "convex": "^1.28.0",
     "lucide-react": "^0.544.0",
     "react": "^19.2.0",

@@ -35,7 +35,7 @@ export function getRouter() {
           clientId={import.meta.env.VITE_WORKOS_CLIENT_ID}
           redirectUri={import.meta.env.VITE_WORKOS_REDIRECT_URI}
         >
-          <ConvexProviderWithAuthKit client={convexQueryClient} useAuth={useAuth}>
+          <ConvexProviderWithAuthKit client={convexQueryClient.convexClient} useAuth={useAuth}>
 
             {children}
           </ConvexProviderWithAuthKit>

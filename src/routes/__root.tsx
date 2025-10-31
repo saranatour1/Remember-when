@@ -8,6 +8,7 @@ import Header from '../components/Header'
 
 import appCss from '../styles.css?url'
 
+
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
 }>()({
@@ -31,7 +32,11 @@ export const Route = createRootRouteWithContext<{
       },
     ],
   }),
+  beforeLoad: async () => {
+    // const { user } = await getAuth();
 
+    // return { user };
+  },
   shellComponent: RootDocument,
 })
 

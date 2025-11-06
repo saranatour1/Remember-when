@@ -1,15 +1,76 @@
-import { createRouter } from '@tanstack/react-router'
+import { ConvexQueryClient } from '@convex-dev/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { createRouter } from '@tanstack/react-router';
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
+import { AuthKitProvider, useAccessToken, useAuth } from '@workos/authkit-tanstack-react-start/client';
+import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
+import { useCallback, useMemo } from 'react';
+import { routeTree } from './routeTree.gen';
 
-// Import the generated route tree
-import { routeTree } from './routeTree.gen'
+export function getRouter() {
+  const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!;
+  if (!CONVEX_URL) {
+    throw new Error('missing VITE_CONVEX_URL env var');
+  }
+  const convex = new ConvexReactClient(CONVEX_URL);
+  const convexQueryClient = new ConvexQueryClient(convex);
 
-// Create a new router instance
-export const getRouter = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        queryKeyHashFn: convexQueryClient.hashFn(),
+        queryFn: convexQueryClient.queryFn(),
+        gcTime: 5000,
+      },
+    },
+  });
+  convexQueryClient.connect(queryClient);
+
   const router = createRouter({
     routeTree,
+    defaultPreload: 'intent',
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
-  })
+    defaultPreloadStaleTime: 0, // Let React Query handle all caching
+    defaultErrorComponent: (err) => <p>{err.error.stack}</p>,
+    defaultNotFoundComponent: () => <p>not found</p>,
+    context: { queryClient, convexClient:convexQueryClient.convexClient, convexQueryClient },
+    Wrap: ({ children }) => (
+      <QueryClientProvider client={queryClient}>
 
-  return router
+        <AuthKitProvider>
+        <ConvexProviderWithAuth client={convexQueryClient.convexClient} useAuth={useAuthFromWorkOS}>
+          {children}
+        </ConvexProviderWithAuth>
+      </AuthKitProvider>
+      </QueryClientProvider>
+    ),
+  });
+  setupRouterSsrQueryIntegration({ router, queryClient });
+
+  return router;
+}
+
+function useAuthFromWorkOS() {
+  const { loading, user } = useAuth();
+  const { accessToken, getAccessToken } = useAccessToken();
+
+  const fetchAccessToken = useCallback(
+    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+      if (!accessToken || forceRefreshToken) {
+        return (await getAccessToken()) ?? null;
+      }
+
+      return accessToken;
+    },
+    [accessToken, getAccessToken],
+  );
+
+  return useMemo(
+    () => ({
+      isLoading: loading,
+      isAuthenticated: !!user,
+      fetchAccessToken,
+    }),
+    [loading, user, fetchAccessToken],
+  );
 }

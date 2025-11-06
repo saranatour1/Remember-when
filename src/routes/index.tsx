@@ -1,118 +1,164 @@
-import { createFileRoute } from '@tanstack/react-router'
-import {
-  Zap,
-  Server,
-  Route as RouteIcon,
-  Shield,
-  Waves,
-  Sparkles,
-} from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router';
+import { Authenticated, Unauthenticated, useMutation } from 'convex/react';
+import { useAuth } from '@workos/authkit-tanstack-react-start/client';
+import { getAuth, getSignInUrl, getSignUpUrl } from '@workos/authkit-tanstack-react-start';
+import { convexQuery } from '@convex-dev/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { api } from '../../convex/_generated/api';
+import type { User } from '@workos/authkit-tanstack-react-start';
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({
+  component: Home,
+  loader: async () => {
+    const { user } = await getAuth();
+    const signInUrl = await getSignInUrl();
+    const signUpUrl = await getSignUpUrl();
 
-function App() {
-  const features = [
-    {
-      icon: <Zap className="w-12 h-12 text-cyan-400" />,
-      title: 'Powerful Server Functions',
-      description:
-        'Write server-side code that seamlessly integrates with your client components. Type-safe, secure, and simple.',
-    },
-    {
-      icon: <Server className="w-12 h-12 text-cyan-400" />,
-      title: 'Flexible Server Side Rendering',
-      description:
-        'Full-document SSR, streaming, and progressive enhancement out of the box. Control exactly what renders where.',
-    },
-    {
-      icon: <RouteIcon className="w-12 h-12 text-cyan-400" />,
-      title: 'API Routes',
-      description:
-        'Build type-safe API endpoints alongside your application. No separate backend needed.',
-    },
-    {
-      icon: <Shield className="w-12 h-12 text-cyan-400" />,
-      title: 'Strongly Typed Everything',
-      description:
-        'End-to-end type safety from server to client. Catch errors before they reach production.',
-    },
-    {
-      icon: <Waves className="w-12 h-12 text-cyan-400" />,
-      title: 'Full Streaming Support',
-      description:
-        'Stream data from server to client progressively. Perfect for AI applications and real-time updates.',
-    },
-    {
-      icon: <Sparkles className="w-12 h-12 text-cyan-400" />,
-      title: 'Next Generation Ready',
-      description:
-        'Built from the ground up for modern web applications. Deploy anywhere JavaScript runs.',
-    },
-  ]
+    return { user, signInUrl, signUpUrl };
+  },
+});
+
+function Home() {
+  const { user, signInUrl, signUpUrl } = Route.useLoaderData();
+  return <HomeContent user={user} signInUrl={signInUrl} signUpUrl={signUpUrl} />;
+}
+
+function HomeContent({ user, signInUrl, signUpUrl }: { user: User | null; signInUrl: string; signUpUrl: string }) {
+  return (
+    <>
+      <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
+        Convex + TanStack Start + WorkOS
+        {user && <UserMenu user={user} />}
+      </header>
+      <main className="p-8 flex flex-col gap-8">
+        <h1 className="text-4xl font-bold text-center">Convex + TanStack Start + WorkOS</h1>
+        <Authenticated>
+          <Content />
+        </Authenticated>
+        <Unauthenticated>
+          <SignInForm signInUrl={signInUrl} signUpUrl={signUpUrl} />
+        </Unauthenticated>
+      </main>
+    </>
+  );
+}
+
+function SignInForm({ signInUrl, signUpUrl }: { signInUrl: string; signUpUrl: string }) {
+  return (
+    <div className="flex flex-col gap-8 w-96 mx-auto">
+      <p>Log in to see the numbers</p>
+      <a href={signInUrl}>
+        <button className="bg-foreground text-background px-4 py-2 rounded-md">Sign in</button>
+      </a>
+      <a href={signUpUrl}>
+        <button className="bg-foreground text-background px-4 py-2 rounded-md">Sign up</button>
+      </a>
+    </div>
+  );
+}
+
+function Content() {
+  const {
+    data: { viewer, numbers },
+  } = useSuspenseQuery(
+    convexQuery(api.myFunctions.listNumbers, {
+      count: 10,
+    }),
+  );
+  const addNumber = useMutation(api.myFunctions.addNumber);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900">
-      <section className="relative py-20 px-6 text-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10"></div>
-        <div className="relative max-w-5xl mx-auto">
-          <div className="flex items-center justify-center gap-6 mb-6">
-            <img
-              src="/tanstack-circle-logo.png"
-              alt="TanStack Logo"
-              className="w-24 h-24 md:w-32 md:h-32"
+    <div className="flex flex-col gap-8 max-w-lg mx-auto">
+      <p>Welcome {viewer}!</p>
+      <p>
+        Click the button below and open this page in another window - this data is persisted in the Convex cloud
+        database!
+      </p>
+      <p>
+        <button
+          className="bg-foreground text-background text-sm px-4 py-2 rounded-md"
+          onClick={() => {
+            void addNumber({ value: Math.floor(Math.random() * 10) });
+          }}
+        >
+          Add a random number
+        </button>
+      </p>
+      <p>Numbers: {numbers.length === 0 ? 'Click the button!' : numbers.join(', ')}</p>
+      <p>
+        Edit{' '}
+        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
+          convex/myFunctions.ts
+        </code>{' '}
+        to change your backend
+      </p>
+      <p>
+        Edit{' '}
+        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
+          src/routes/index.tsx
+        </code>{' '}
+        to change your frontend
+      </p>
+      <p>
+        See{' '}
+        <Link to="/authenticated" className="underline hover:no-underline">
+          /authenticated
+        </Link>{' '}
+        for an example of a page only available to authenticated users.
+      </p>
+      <div className="flex flex-col">
+        <p className="text-lg font-bold">Useful resources:</p>
+        <div className="flex gap-2">
+          <div className="flex flex-col gap-2 w-1/2">
+            <ResourceCard
+              title="Convex docs"
+              description="Read comprehensive documentation for all Convex features."
+              href="https://docs.convex.dev/home"
             />
-            <h1 className="text-6xl md:text-7xl font-black text-white [letter-spacing:-0.08em]">
-              <span className="text-gray-300">TANSTACK</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                START
-              </span>
-            </h1>
+            <ResourceCard
+              title="Stack articles"
+              description="Learn about best practices, use cases, and more from a growing collection of articles, videos, and walkthroughs."
+              href="https://stack.convex.dev"
+            />
           </div>
-          <p className="text-2xl md:text-3xl text-gray-300 mb-4 font-light">
-            The framework for next generation AI applications
-          </p>
-          <p className="text-lg text-gray-400 max-w-3xl mx-auto mb-8">
-            Full-stack framework powered by TanStack Router for React and Solid.
-            Build modern applications with server functions, streaming, and type
-            safety.
-          </p>
-          <div className="flex flex-col items-center gap-4">
-            <a
-              href="https://tanstack.com/start"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-8 py-3 bg-cyan-500 hover:bg-cyan-600 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-cyan-500/50"
-            >
-              Documentation
-            </a>
-            <p className="text-gray-400 text-sm mt-2">
-              Begin your TanStack Start journey by editing{' '}
-              <code className="px-2 py-1 bg-slate-700 rounded text-cyan-400">
-                /src/routes/index.tsx
-              </code>
-            </p>
+          <div className="flex flex-col gap-2 w-1/2">
+            <ResourceCard
+              title="Templates"
+              description="Browse our collection of templates to get started quickly."
+              href="https://www.convex.dev/templates"
+            />
+            <ResourceCard
+              title="Discord"
+              description="Join our developer community to ask questions, trade tips & tricks, and show off your projects."
+              href="https://www.convex.dev/community"
+            />
           </div>
         </div>
-      </section>
-
-      <section className="py-16 px-6 max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <div
-              key={index}
-              className="bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl p-6 hover:border-cyan-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
-            >
-              <div className="mb-4">{feature.icon}</div>
-              <h3 className="text-xl font-semibold text-white mb-3">
-                {feature.title}
-              </h3>
-              <p className="text-gray-400 leading-relaxed">
-                {feature.description}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
+      </div>
     </div>
-  )
+  );
+}
+
+function ResourceCard({ title, description, href }: { title: string; description: string; href: string }) {
+  return (
+    <div className="flex flex-col gap-2 bg-slate-200 dark:bg-slate-800 p-4 rounded-md h-28 overflow-auto">
+      <a href={href} className="text-sm underline hover:no-underline">
+        {title}
+      </a>
+      <p className="text-xs">{description}</p>
+    </div>
+  );
+}
+
+function UserMenu({ user }: { user: User }) {
+  const { signOut } = useAuth();
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm">{user.email}</span>
+      <button onClick={() => signOut()} className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600">
+        Sign out
+      </button>
+    </div>
+  );
 }

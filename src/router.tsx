@@ -1,5 +1,5 @@
 import { ConvexQueryClient } from '@convex-dev/react-query';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createRouter } from '@tanstack/react-router';
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
 import { AuthKitProvider, useAccessToken, useAuth } from '@workos/authkit-tanstack-react-start/client';
@@ -35,11 +35,14 @@ export function getRouter() {
     defaultNotFoundComponent: () => <p>not found</p>,
     context: { queryClient, convexClient:convexQueryClient.convexClient, convexQueryClient },
     Wrap: ({ children }) => (
-      <AuthKitProvider>
+      <QueryClientProvider client={queryClient}>
+
+        <AuthKitProvider>
         <ConvexProviderWithAuth client={convexQueryClient.convexClient} useAuth={useAuthFromWorkOS}>
           {children}
         </ConvexProviderWithAuth>
       </AuthKitProvider>
+      </QueryClientProvider>
     ),
   });
   setupRouterSsrQueryIntegration({ router, queryClient });

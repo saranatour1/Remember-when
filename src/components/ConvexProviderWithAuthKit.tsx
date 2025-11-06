@@ -33,7 +33,7 @@ export function ConvexProviderWithAuthKit({
 }) {
   const useAuthFromWorkOS = useUseAuthFromAuthKit(useAuth);
   return (
-    // @ts-ignore
+    // @ts-expect-error
     <ConvexProviderWithAuth client={client} useAuth={useAuthFromWorkOS}>
       {children}
     </ConvexProviderWithAuth>

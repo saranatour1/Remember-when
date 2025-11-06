@@ -1,49 +1,73 @@
-import { createRouter } from "@tanstack/react-router";
-import { QueryClient } from "@tanstack/react-query";
-import { routerWithQueryClient } from "@tanstack/react-router-with-query";
-import { ConvexQueryClient } from "@convex-dev/react-query";
-import { routeTree } from "./routeTree.gen";
-import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
-import { ConvexProviderWithAuthKit } from "@convex-dev/workos";
-
+import { ConvexQueryClient } from '@convex-dev/react-query';
+import { QueryClient } from '@tanstack/react-query';
+import { createRouter } from '@tanstack/react-router';
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
+import { AuthKitProvider, useAccessToken, useAuth } from '@workos/authkit-tanstack-react-start/client';
+import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
+import { useCallback, useMemo } from 'react';
+import { routeTree } from './routeTree.gen';
 
 export function getRouter() {
   const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!;
   if (!CONVEX_URL) {
-    console.error("missing envar VITE_CONVEX_URL");
+    throw new Error('missing VITE_CONVEX_URL env var');
   }
-  const convexQueryClient = new ConvexQueryClient(CONVEX_URL);
+  const convex = new ConvexReactClient(CONVEX_URL);
+  const convexQueryClient = new ConvexQueryClient(convex);
 
-  const queryClient: QueryClient = new QueryClient({
+  const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
         queryKeyHashFn: convexQueryClient.hashFn(),
         queryFn: convexQueryClient.queryFn(),
+        gcTime: 5000,
       },
     },
   });
   convexQueryClient.connect(queryClient);
 
-  const router = routerWithQueryClient(
-    createRouter({
-      routeTree,
-      defaultPreload: "intent",
-      context: { queryClient },
-      scrollRestoration: true,
-      Wrap: ({ children }) => (
-        <AuthKitProvider
-          clientId={import.meta.env.VITE_WORKOS_CLIENT_ID}
-          redirectUri={import.meta.env.VITE_WORKOS_REDIRECT_URI}
-        >
-          <ConvexProviderWithAuthKit client={convexQueryClient.convexClient} useAuth={useAuth}>
-
-            {children}
-          </ConvexProviderWithAuthKit>
-        </AuthKitProvider>
-      ),
-    }),
-    queryClient,
-  );
+  const router = createRouter({
+    routeTree,
+    defaultPreload: 'intent',
+    scrollRestoration: true,
+    defaultPreloadStaleTime: 0, // Let React Query handle all caching
+    defaultErrorComponent: (err) => <p>{err.error.stack}</p>,
+    defaultNotFoundComponent: () => <p>not found</p>,
+    context: { queryClient, convexClient:convexQueryClient.convexClient, convexQueryClient },
+    Wrap: ({ children }) => (
+      <AuthKitProvider>
+        <ConvexProviderWithAuth client={convexQueryClient.convexClient} useAuth={useAuthFromWorkOS}>
+          {children}
+        </ConvexProviderWithAuth>
+      </AuthKitProvider>
+    ),
+  });
+  setupRouterSsrQueryIntegration({ router, queryClient });
 
   return router;
+}
+
+function useAuthFromWorkOS() {
+  const { loading, user } = useAuth();
+  const { accessToken, getAccessToken } = useAccessToken();
+
+  const fetchAccessToken = useCallback(
+    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+      if (!accessToken || forceRefreshToken) {
+        return (await getAccessToken()) ?? null;
+      }
+
+      return accessToken;
+    },
+    [accessToken, getAccessToken],
+  );
+
+  return useMemo(
+    () => ({
+      isLoading: loading,
+      isAuthenticated: !!user,
+      fetchAccessToken,
+    }),
+    [loading, user, fetchAccessToken],
+  );
 }

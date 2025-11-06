@@ -1,16 +1,26 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TanStackDevtools } from '@tanstack/react-devtools'
-import { QueryClient } from "@tanstack/react-query";
-import { createRootRouteWithContext } from "@tanstack/react-router";
+import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router';
+import { createServerFn } from '@tanstack/react-start';
+import { getAuth } from '@workos/authkit-tanstack-react-start';
+import appCssUrl from '../app.css?url';
+import type { QueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import type { ConvexReactClient } from 'convex/react';
+import type { ConvexQueryClient } from '@convex-dev/react-query';
 
-import Header from '../components/Header'
+const fetchWorkosAuth = createServerFn({ method: 'GET' }).handler(async () => {
+  const auth = await getAuth();
+  const { user } = auth;
 
-import appCss from '../styles.css?url'
-
+  return {
+    userId: user?.id ?? null,
+    token: user ? auth.accessToken : null,
+  };
+});
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
+  convexClient: ConvexReactClient;
+  convexQueryClient: ConvexQueryClient;
 }>()({
   head: () => ({
     meta: [
@@ -22,46 +32,47 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Convex + TanStack Start + WorkOS AuthKit',
       },
     ],
     links: [
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
+      { rel: 'stylesheet', href: appCssUrl },
+      { rel: 'icon', href: '/convex.svg' },
     ],
   }),
-  beforeLoad: async () => {
-    // const { user } = await getAuth();
+  component: RootComponent,
+  notFoundComponent: () => <div>Not Found</div>,
+  beforeLoad: async (ctx) => {
+    const { userId, token } = await fetchWorkosAuth();
 
-    // return { user };
+    // During SSR only (the only time serverHttpClient exists),
+    // set the Clerk auth token to make HTTP queries with.
+    if (token) {
+      ctx.context.convexQueryClient.serverHttpClient?.setAuth(token);
+    }
+
+    return { userId, token };
   },
-  shellComponent: RootDocument,
-})
+});
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+function RootComponent() {
+  return (
+    <RootDocument>
+      <Outlet />
+    </RootDocument>
+  );
+}
+
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        <Header />
         {children}
-        <TanStackDevtools
-          config={{
-            position: 'bottom-right',
-          }}
-          plugins={[
-            {
-              name: 'Tanstack Router',
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
         <Scripts />
       </body>
     </html>
-  )
+  );
 }
